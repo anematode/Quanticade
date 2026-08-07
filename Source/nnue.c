@@ -66,14 +66,14 @@ const unsigned int gEVALSize = 1;
 
 #if defined(__AVX512F__) || defined(USE_AVX512)
 #define VECTOR_BYTES 64
-#define REGISTERS 32
+#define REGISTERS 16
 #elif defined(__AVX2__) || defined(USE_AVX2)
 #define VECTOR_BYTES 32
-#define REGISTERS 16
+#define REGISTERS 8
 #elif defined(__ARM_NEON) || defined(USE_NEON) || defined(__aarch64__)
 // aarch64 has 32 registers
 #define VECTOR_BYTES 16
-#define REGISTERS 32
+#define REGISTERS 16
 #else
 #define VECTOR_BYTES 16
 #define REGISTERS 8
@@ -1070,46 +1070,53 @@ static void apply_threat_batches(accumulator_t *acc, threat_list_t *adds,
       (int16_t *)__builtin_assume_aligned(acc->threat_accumulator[black], 64);
 
   for (int i = 0; i < L1_SIZE; i += CHUNK_SIZE * CHUNK_ELTS) {
-    vec_s16 w_vecs[CHUNK_SIZE];
-    vec_s16 b_vecs[CHUNK_SIZE];
+    {
+      vec_s16 w_vecs[CHUNK_SIZE];
+      memcpy(w_vecs, w_acc + i, sizeof(w_vecs));
 
-    memcpy(w_vecs, w_acc + i, sizeof(w_vecs));
-    memcpy(b_vecs, b_acc + i, sizeof(b_vecs));
-
-    for (int j = 0; j < adds->w_count; ++j) {
-      for (int k = 0; k < CHUNK_SIZE; ++k) {
-        vec_s8 w8 = *(vec_s8 *)&nnue
-                         ->feature_threats[adds->w_idx[j]][i + (k * CHUNK_ELTS)];
-        w_vecs[k] += __builtin_convertvector(w8, vec_s16);
+      for (int j = 0; j < adds->w_count; ++j) {
+        const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[adds->w_idx[j]][i];
+#pragma GCC unroll 16
+        for (int k = 0; k < CHUNK_SIZE; ++k) {
+          vec_s8 w8 = *m++;
+          w_vecs[k] += __builtin_convertvector(w8, vec_s16);
+        }
       }
+
+      for (int j = 0; j < subs->w_count; ++j) {
+        const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[subs->w_idx[j]][i];
+        for (int k = 0; k < CHUNK_SIZE; ++k) {
+          vec_s8 w8 = *m++;
+          w_vecs[k] -= __builtin_convertvector(w8, vec_s16);
+        }
+      }
+
+      memcpy(w_acc + i, w_vecs, sizeof(w_vecs));
     }
 
-    for (int j = 0; j < adds->b_count; ++j) {
-      for (int k = 0; k < CHUNK_SIZE; ++k) {
-        vec_s8 w8 = *(vec_s8 *)&nnue
-                         ->feature_threats[adds->b_idx[j]][i + (k * CHUNK_ELTS)];
-        b_vecs[k] += __builtin_convertvector(w8, vec_s16);
+    {
+      vec_s16 b_vecs[CHUNK_SIZE];
+      memcpy(b_vecs, b_acc + i, sizeof(b_vecs));
+      for (int j = 0; j < adds->b_count; ++j) {
+        const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[adds->b_idx[j]][i];
+#pragma GCC unroll 16
+        for (int k = 0; k < CHUNK_SIZE; ++k) {
+          vec_s8 w8 = *m++;
+          b_vecs[k] += __builtin_convertvector(w8, vec_s16);
+        }
       }
-    }
 
-    for (int j = 0; j < subs->w_count; ++j) {
-      for (int k = 0; k < CHUNK_SIZE; ++k) {
-        vec_s8 w8 = *(vec_s8 *)&nnue
-                         ->feature_threats[subs->w_idx[j]][i + (k * CHUNK_ELTS)];
-        w_vecs[k] -= __builtin_convertvector(w8, vec_s16);
+      for (int j = 0; j < subs->b_count; ++j) {
+        const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[subs->b_idx[j]][i];
+#pragma GCC unroll 16
+        for (int k = 0; k < CHUNK_SIZE; ++k) {
+          vec_s8 w8 = *m++;
+          b_vecs[k] -= __builtin_convertvector(w8, vec_s16);
+        }
       }
-    }
 
-    for (int j = 0; j < subs->b_count; ++j) {
-      for (int k = 0; k < CHUNK_SIZE; ++k) {
-        vec_s8 w8 = *(vec_s8 *)&nnue
-                         ->feature_threats[subs->b_idx[j]][i + (k * CHUNK_ELTS)];
-        b_vecs[k] -= __builtin_convertvector(w8, vec_s16);
-      }
+      memcpy(b_acc + i, b_vecs, sizeof(b_vecs));
     }
-
-    memcpy(w_acc + i, w_vecs, sizeof(w_vecs));
-    memcpy(b_acc + i, b_vecs, sizeof(b_vecs));
   }
 }
 
