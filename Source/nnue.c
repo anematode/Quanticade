@@ -1062,17 +1062,21 @@ static inline void push_threat(threat_list_t *list, uint8_t w_ksq,
   }
 }
 
-static void apply_threat_batches(accumulator_t *acc, threat_list_t *adds,
-                                 threat_list_t *subs) {
+static void apply_threat_batches(accumulator_t *acc, const accumulator_t* acc_before,
+                                 threat_list_t *adds, threat_list_t *subs) {
   int16_t *w_acc =
       (int16_t *)__builtin_assume_aligned(acc->threat_accumulator[white], 64);
+  int16_t *w_acc_before =
+      (int16_t *)__builtin_assume_aligned(acc_before->threat_accumulator[white], 64);
   int16_t *b_acc =
-      (int16_t *)__builtin_assume_aligned(acc->threat_accumulator[black], 64);
+    (int16_t *)__builtin_assume_aligned(acc->threat_accumulator[black], 64);
+  int16_t *b_acc_before =
+      (int16_t *)__builtin_assume_aligned(acc_before->threat_accumulator[black], 64);
 
   for (int i = 0; i < L1_SIZE; i += CHUNK_SIZE * CHUNK_ELTS) {
     {
       vec_s16 w_vecs[CHUNK_SIZE];
-      memcpy(w_vecs, w_acc + i, sizeof(w_vecs));
+      memcpy(w_vecs, w_acc_before + i, sizeof(w_vecs));
 
       for (int j = 0; j < adds->w_count; ++j) {
         const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[adds->w_idx[j]][i];
@@ -1096,7 +1100,7 @@ static void apply_threat_batches(accumulator_t *acc, threat_list_t *adds,
 
     {
       vec_s16 b_vecs[CHUNK_SIZE];
-      memcpy(b_vecs, b_acc + i, sizeof(b_vecs));
+      memcpy(b_vecs, b_acc_before + i, sizeof(b_vecs));
       for (int j = 0; j < adds->b_count; ++j) {
         const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[adds->b_idx[j]][i];
 #pragma GCC unroll 16
@@ -1201,7 +1205,9 @@ static void process_slider_deltas(position_t *pos_before, position_t *pos_after,
   }
 }
 
+__attribute__((always_inline))
 static void update_threats_incremental(accumulator_t *acc,
+                                       accumulator_t *acc_before,
                                        position_t *pos_before,
                                        position_t *pos_after) {
   uint64_t real_changed_sqs = 0;
@@ -1238,7 +1244,7 @@ static void update_threats_incremental(accumulator_t *acc,
   process_changed_squares(pos_after, real_changed_sqs, &adds);
   process_slider_deltas(pos_before, pos_after, affected_sliders, real_changed_sqs, &adds, &subs);
 
-  apply_threat_batches(acc, &adds, &subs);
+  apply_threat_batches(acc, acc_before, &adds, &subs);
 }
 
 void apply_accumulator(thread_t *thread, int ply) {
@@ -1295,14 +1301,8 @@ void apply_accumulator(thread_t *thread, int ply) {
                     &thread->accumulator[ply]);
   } else {
 
-    memcpy(thread->accumulator[ply].threat_accumulator[white],
-           thread->accumulator[ply - 1].threat_accumulator[white],
-           L1_SIZE * sizeof(int16_t));
-    memcpy(thread->accumulator[ply].threat_accumulator[black],
-           thread->accumulator[ply - 1].threat_accumulator[black],
-           L1_SIZE * sizeof(int16_t));
-
     update_threats_incremental(&thread->accumulator[ply],
+                          &thread->accumulator[ply - 1],
                                &thread->positions[ply - 1],
                                &thread->positions[ply]);
   }
