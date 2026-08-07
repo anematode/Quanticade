@@ -214,10 +214,6 @@ static inline void vec_store_i(veci_t *dst, veci_t v) {
   vst1q_s16((int16_t *)dst, v);
 }
 
-static inline veci32_t add_epi32(veci32_t a, veci32_t b) {
-  return vaddq_s32(a, b);
-}
-
 #if defined(USE_NEON_DOTPROD)
 static inline veci32_t dpbusd_epi32(veci32_t sum, vecs8_t u, vecs8_t w) {
   return vdotq_s32(sum, u, w);

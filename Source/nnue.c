@@ -732,18 +732,10 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
   }
 #endif
 
-#if defined(USE_AVX512ICL) || defined(USE_NEON_DOTPROD)
-  const int Split = 2;
-#else
-  const int Split = 1;
-#endif
-
   const int L2_VECS = L2_SIZE / I32_STRIDE;
-  veci32_t regs[L2_VECS][Split];
-  for (int r = 0; r < L2_VECS; r++) {
-    regs[r][0] = zero_i32();
-    for (int i = 1; i < Split; ++i) regs[r][i] = zero_i32();
-  }
+  veci32_t regs[L2_VECS];
+  for (int r = 0; r < L2_VECS; r++)
+    regs[r] = zero_i32();
 
   int n = 0;
   for (; n + 1 < nnz_count; n += 2) {
@@ -760,23 +752,9 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
       const vecs8_t w1 =
           *((vecs8_t *)&nnue
                 ->l1_weights[out_bucket][o1 + INT8_PER_INT32 * r * I32_STRIDE]);
-#if defined(USE_AVX512ICL) || defined(USE_NEON_DOTPROD)
-      regs[r][0] = dpbusd_epi32(regs[r][0], u0, w0);
-      regs[r][1] = dpbusd_epi32(regs[r][1], u1, w1);
-#else
-      regs[r][0] = dpbusd_epi32x2(regs[r][0], u0, w0, u1, w1);
-#endif
+      regs[r] = dpbusd_epi32x2(regs[r], u0, w0, u1, w1);
     }
   }
-
-  if (Split > 1) {
-    for (int r = 0; r < L2_VECS; r++) {
-      for (int i = 1; i < Split; ++i) {
-        regs[r][0] = add_epi32(regs[r][0], regs[r][i]);
-      }
-    }
-  }
-
   if (n < nnz_count) {
     const int p0 = nnz_indices[n];
     const vecs8_t u0 = broadcast_pack(l1Packs[p0]);
@@ -785,11 +763,11 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
       const vecs8_t w0 =
           *((vecs8_t *)&nnue
                 ->l1_weights[out_bucket][o0 + INT8_PER_INT32 * r * I32_STRIDE]);
-      regs[r][0] = dpbusd_epi32(regs[r][0], u0, w0);
+      regs[r] = dpbusd_epi32(regs[r], u0, w0);
     }
   }
   for (int r = 0; r < L2_VECS; r++)
-    *((veci32_t *)&layers->l2_neurons[r * I32_STRIDE]) = regs[r][0];
+    *((veci32_t *)&layers->l2_neurons[r * I32_STRIDE]) = regs[r];
 
   float result;
   memcpy(layers->l3_neurons, nnue->l2_bias[out_bucket],
