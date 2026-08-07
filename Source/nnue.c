@@ -905,19 +905,19 @@ accumulator_addsub(accumulator_t *restrict accumulator,
                      1);
 
   if (color_flag == 0 || color_flag == 2) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      accumulator->psqt_accumulator[white][i] =
-          prev_accumulator->psqt_accumulator[white][i] -
-          nnue->feature_weights[white_bucket][white_idx_from][i] +
-          nnue->feature_weights[white_bucket][white_idx_to][i];
+    for (int i = 0; i < L1_SIZE; i += CHUNK_ELTS) {
+      *(vec_s16*)&accumulator->psqt_accumulator[white][i] =
+          *(const vec_s16*)&prev_accumulator->psqt_accumulator[white][i] -
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_from][i] +
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_to][i];
     }
   }
   if (color_flag == 1 || color_flag == 2) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      accumulator->psqt_accumulator[black][i] =
-          prev_accumulator->psqt_accumulator[black][i] -
-          nnue->feature_weights[black_bucket][black_idx_from][i] +
-          nnue->feature_weights[black_bucket][black_idx_to][i];
+    for (int i = 0; i < L1_SIZE; i += CHUNK_ELTS) {
+      *(vec_s16*)&accumulator->psqt_accumulator[black][i] =
+          *(const vec_s16*)&prev_accumulator->psqt_accumulator[black][i] -
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_from][i] +
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_to][i];
     }
   }
 }
@@ -942,21 +942,21 @@ static inline void accumulator_addsubsub(
       get_idx(black, piece3, to3, black_king_square, 0, 0);
 
   if (color_flag == 0 || color_flag == 2) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      accumulator->psqt_accumulator[white][i] =
-          prev_accumulator->psqt_accumulator[white][i] -
-          nnue->feature_weights[white_bucket][white_idx_from1][i] -
-          nnue->feature_weights[white_bucket][white_idx_from2][i] +
-          nnue->feature_weights[white_bucket][white_idx_to][i];
+    for (int i = 0; i < L1_SIZE; i += CHUNK_ELTS) {
+      *(vec_s16*)&accumulator->psqt_accumulator[white][i] =
+          *(const vec_s16*)&prev_accumulator->psqt_accumulator[white][i] -
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_from1][i] -
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_from2][i] +
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_to][i];
     }
   }
   if (color_flag == 1 || color_flag == 2) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      accumulator->psqt_accumulator[black][i] =
-          prev_accumulator->psqt_accumulator[black][i] -
-          nnue->feature_weights[black_bucket][black_idx_from1][i] -
-          nnue->feature_weights[black_bucket][black_idx_from2][i] +
-          nnue->feature_weights[black_bucket][black_idx_to][i];
+    for (int i = 0; i < L1_SIZE; i += CHUNK_ELTS) {
+      *(vec_s16*)&accumulator->psqt_accumulator[black][i] =
+          *(const vec_s16*)&prev_accumulator->psqt_accumulator[black][i] -
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_from1][i] -
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_from2][i] +
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_to][i];
     }
   }
 }
@@ -987,23 +987,23 @@ accumulator_addaddsubsub(accumulator_t *restrict accumulator,
       get_idx(black, piece4, to4, black_king_square, 0, 0);
 
   if (color_flag == 0 || color_flag == 2) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      accumulator->psqt_accumulator[white][i] =
-          prev_accumulator->psqt_accumulator[white][i] -
-          nnue->feature_weights[white_bucket][white_idx_from1][i] -
-          nnue->feature_weights[white_bucket][white_idx_from2][i] +
-          nnue->feature_weights[white_bucket][white_idx_to1][i] +
-          nnue->feature_weights[white_bucket][white_idx_to2][i];
+    for (int i = 0; i < L1_SIZE; i += CHUNK_ELTS) {
+      *(vec_s16*)&accumulator->psqt_accumulator[white][i] =
+          *(const vec_s16*)&prev_accumulator->psqt_accumulator[white][i] -
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_from1][i] -
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_from2][i] +
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_to1][i] +
+          *(const vec_s16*)&nnue->feature_weights[white_bucket][white_idx_to2][i];
     }
   }
   if (color_flag == 1 || color_flag == 2) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      accumulator->psqt_accumulator[black][i] =
-          prev_accumulator->psqt_accumulator[black][i] -
-          nnue->feature_weights[black_bucket][black_idx_from1][i] -
-          nnue->feature_weights[black_bucket][black_idx_from2][i] +
-          nnue->feature_weights[black_bucket][black_idx_to1][i] +
-          nnue->feature_weights[black_bucket][black_idx_to2][i];
+    for (int i = 0; i < L1_SIZE; i += CHUNK_ELTS) {
+      *(vec_s16*)&accumulator->psqt_accumulator[black][i] =
+          *(const vec_s16*)&prev_accumulator->psqt_accumulator[black][i] -
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_from1][i] -
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_from2][i] +
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_to1][i] +
+          *(const vec_s16*)&nnue->feature_weights[black_bucket][black_idx_to2][i];
     }
   }
 }
