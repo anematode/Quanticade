@@ -249,14 +249,11 @@ static inline int16_t get_idx(uint8_t side, uint8_t piece, uint8_t square,
 }
 
 void rebuild_threats(position_t *pos, uint8_t *mailbox, accumulator_t *acc) {
-  for (int i = 0; i < L1_SIZE; ++i) {
-    acc->threat_accumulator[white][i] = 0;
-    acc->threat_accumulator[black][i] = 0;
-  }
-
   uint64_t occ = pos->occupancies[both];
   uint8_t white_king_sq = get_lsb(pos->bitboards[K]);
   uint8_t black_king_sq = get_lsb(pos->bitboards[k]);
+
+  threat_list_t added = { .w_count = 0, .b_count = 0 };
 
   for (int c = 0; c < 2; ++c) {
     for (int pt = 0; pt < 5; ++pt) {
@@ -293,21 +290,69 @@ void rebuild_threats(position_t *pos, uint8_t *mailbox, accumulator_t *acc) {
               get_threat_index(black, black_king_sq, pc, victim_pc, src, dest);
 
           if (w_idx >= 0) {
-            for (int i = 0; i < L1_SIZE; ++i) {
-              acc->threat_accumulator[white][i] +=
-                  nnue->feature_threats[w_idx][i];
-            }
+            added.w_idx[added.w_count++] = w_idx;
           }
           if (b_idx >= 0) {
-            for (int i = 0; i < L1_SIZE; ++i) {
-              acc->threat_accumulator[black][i] +=
-                  nnue->feature_threats[b_idx][i];
-            }
+            added.b_idx[added.b_count++] = b_idx;
           }
         }
       }
     }
   }
+
+  if (added.w_count) {
+    for (int i = 0; i < L1_SIZE; i += CHUNK_SIZE * CHUNK_ELTS) {
+      vec_s16 vecs[CHUNK_SIZE];
+
+      const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[added.w_idx[0]][i];
+
+#pragma GCC unroll 16
+      for (int k = 0; k < CHUNK_SIZE; ++k) {
+        vec_s8 w8 = *m++;
+        vecs[k] = __builtin_convertvector(w8, vec_s16);
+      }
+
+      for (int j = 1; j < added.w_count; ++j) {
+        const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[added.w_idx[j]][i];
+#pragma GCC unroll 16
+        for (int k = 0; k < CHUNK_SIZE; ++k) {
+          vec_s8 w8 = *m++;
+          vecs[k] += __builtin_convertvector(w8, vec_s16);
+        }
+      }
+
+      memcpy(&acc->threat_accumulator[white][i], vecs, sizeof(vecs));
+    }
+  } else
+    for (int i = 0; i < L1_SIZE; ++i)
+      acc->threat_accumulator[white][i] = 0;
+
+  if (added.b_count) {
+    for (int i = 0; i < L1_SIZE; i += CHUNK_SIZE * CHUNK_ELTS) {
+      vec_s16 vecs[CHUNK_SIZE];
+
+      const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[added.b_idx[0]][i];
+
+#pragma GCC unroll 16
+      for (int k = 0; k < CHUNK_SIZE; ++k) {
+        vec_s8 w8 = *m++;
+        vecs[k] = __builtin_convertvector(w8, vec_s16);
+      }
+
+      for (int j = 1; j < added.b_count; ++j) {
+        const vec_s8* m = (const vec_s8 *)&nnue->feature_threats[added.b_idx[j]][i];
+#pragma GCC unroll 16
+        for (int k = 0; k < CHUNK_SIZE; ++k) {
+          vec_s8 w8 = *m++;
+          vecs[k] += __builtin_convertvector(w8, vec_s16);
+        }
+      }
+
+      memcpy(&acc->threat_accumulator[black][i], vecs, sizeof(vecs));
+    }
+  } else
+    for (int i = 0; i < L1_SIZE; ++i)
+      acc->threat_accumulator[black][i] = 0;
 }
 
 static inline void refresh_accumulator(thread_t *thread, position_t *pos,
@@ -1293,10 +1338,6 @@ void apply_accumulator(thread_t *thread, int ply) {
   }
 
   if (s->threat_needs_refresh) {
-    for (int i = 0; i < L1_SIZE; ++i) {
-      thread->accumulator[ply].threat_accumulator[white][i] = 0;
-      thread->accumulator[ply].threat_accumulator[black][i] = 0;
-    }
     rebuild_threats(&thread->positions[ply], thread->positions[ply].mailbox,
                     &thread->accumulator[ply]);
   } else {
