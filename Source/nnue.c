@@ -248,6 +248,9 @@ static inline int16_t get_idx(uint8_t side, uint8_t piece, uint8_t square,
   return idx;
 }
 
+static void maybe_push_white_threat(threat_list_t*, int);
+static void maybe_push_black_threat(threat_list_t*, int);
+
 void rebuild_threats(position_t *pos, uint8_t *mailbox, accumulator_t *acc) {
   uint64_t occ = pos->occupancies[both];
   uint8_t white_king_sq = get_lsb(pos->bitboards[K]);
@@ -289,12 +292,8 @@ void rebuild_threats(position_t *pos, uint8_t *mailbox, accumulator_t *acc) {
           int b_idx =
               get_threat_index(black, black_king_sq, pc, victim_pc, src, dest);
 
-          if (w_idx >= 0) {
-            added.w_idx[added.w_count++] = w_idx;
-          }
-          if (b_idx >= 0) {
-            added.b_idx[added.b_count++] = b_idx;
-          }
+          maybe_push_white_threat(&added, w_idx);
+          maybe_push_black_threat(&added, b_idx);
         }
       }
     }
@@ -1093,18 +1092,26 @@ accumulator_make_move(accumulator_t *restrict accumulator,
   }
 }
 
+static inline void maybe_push_white_threat(threat_list_t* out, int w_idx) {
+  int* c = &out->w_count;
+  out->w_idx[*c] = w_idx;
+  *c += w_idx >= 0;
+}
+
+static inline void maybe_push_black_threat(threat_list_t* out, int b_idx) {
+  int* c = &out->b_count;
+  out->b_idx[*c] = b_idx;
+  *c += b_idx >= 0;
+}
+
 static inline void push_threat(threat_list_t *list, uint8_t w_ksq,
                                uint8_t b_ksq, int attacker_pc, int victim_pc,
                                int src, int dest) {
   int w_idx = get_threat_index(white, w_ksq, attacker_pc, victim_pc, src, dest);
-  if (w_idx >= 0) {
-    list->w_idx[list->w_count++] = w_idx;
-  }
+  maybe_push_white_threat(list, w_idx);
 
   int b_idx = get_threat_index(black, b_ksq, attacker_pc, victim_pc, src, dest);
-  if (b_idx >= 0) {
-    list->b_idx[list->b_count++] = b_idx;
-  }
+  maybe_push_black_threat(list, b_idx);
 }
 
 static void apply_threat_batches(accumulator_t *acc, const accumulator_t* acc_before,
