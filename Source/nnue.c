@@ -354,6 +354,11 @@ void rebuild_threats(position_t *pos, uint8_t *mailbox, accumulator_t *acc) {
       acc->threat_accumulator[black][i] = 0;
 }
 
+typedef struct psqt_list_s {
+  int count;
+  unsigned indices[32];
+} psqt_list_t;
+
 static inline void refresh_accumulator(thread_t *thread, position_t *pos,
                                        accumulator_t *accumulator) {
   const uint8_t side = pos->side ^ 1;
@@ -365,34 +370,19 @@ static inline void refresh_accumulator(thread_t *thread, position_t *pos,
   uint64_t *finny_bitboards =
       thread->finny_tables[do_hm][bucket].bitboards[side];
 
+  psqt_list_t added_list = { .count = 0 };
+  psqt_list_t removed_list = { .count = 0 };
+
   for (uint8_t piece = P; piece <= k; ++piece) {
     uint64_t added = pos->bitboards[piece] & ~finny_bitboards[piece];
     uint64_t removed = finny_bitboards[piece] & ~pos->bitboards[piece];
-
-    while (added && removed) {
-      const uint8_t added_square = get_lsb(added);
-      pop_bit(added, added_square);
-      const uint8_t removed_square = get_lsb(removed);
-      pop_bit(removed, removed_square);
-      const size_t added_index =
-          get_idx(side, piece, added_square, king_square, 0, 0);
-      const size_t removed_index =
-          get_idx(side, piece, removed_square, king_square, 0, 0);
-
-      for (int i = 0; i < L1_SIZE; ++i)
-        finny_accumulator->psqt_accumulator[side][i] +=
-            nnue->feature_weights[bucket][added_index][i] -
-            nnue->feature_weights[bucket][removed_index][i];
-    }
 
     while (added) {
       const uint8_t square = get_lsb(added);
       pop_bit(added, square);
       const size_t index = get_idx(side, piece, square, king_square, 0, 0);
 
-      for (int i = 0; i < L1_SIZE; ++i)
-        finny_accumulator->psqt_accumulator[side][i] +=
-            nnue->feature_weights[bucket][index][i];
+      added_list.indices[added_list.count++] = index;
     }
 
     while (removed) {
@@ -400,13 +390,33 @@ static inline void refresh_accumulator(thread_t *thread, position_t *pos,
       pop_bit(removed, square);
       const size_t index = get_idx(side, piece, square, king_square, 0, 0);
 
-      for (int i = 0; i < L1_SIZE; ++i)
-        finny_accumulator->psqt_accumulator[side][i] -=
-            nnue->feature_weights[bucket][index][i];
+      removed_list.indices[removed_list.count++] = index;
     }
   }
-  memcpy(accumulator->psqt_accumulator[side],
-         finny_accumulator->psqt_accumulator[side], L1_SIZE * sizeof(int16_t));
+
+  for (int i = 0; i < L1_SIZE; i += CHUNK_SIZE * CHUNK_ELTS) {
+    vec_s16 vecs[CHUNK_SIZE];
+    memcpy(vecs, &finny_accumulator->psqt_accumulator[side][i], sizeof(vecs));
+
+    for (int j = 0; j < added_list.count; ++j) {
+      const vec_s16* m = (const vec_s16 *)&nnue->feature_weights[bucket][added_list.indices[j]][i];
+#pragma GCC unroll 16
+      for (int k = 0; k < CHUNK_SIZE; ++k) {
+        vecs[k] += *m++;
+      }
+    }
+
+    for (int j = 0; j < removed_list.count; ++j) {
+      const vec_s16* m = (const vec_s16 *)&nnue->feature_weights[bucket][removed_list.indices[j]][i];
+      for (int k = 0; k < CHUNK_SIZE; ++k) {
+        vecs[k] -= *m++;
+      }
+    }
+
+    memcpy(&finny_accumulator->psqt_accumulator[side][i], vecs, sizeof(vecs));
+    memcpy(&accumulator->psqt_accumulator[side][i], vecs, sizeof(vecs));
+  }
+
   memcpy(finny_bitboards, pos->bitboards, 12 * sizeof(uint64_t));
 
   rebuild_threats(pos, pos->mailbox, accumulator);
