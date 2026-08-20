@@ -234,86 +234,91 @@ uint64_t mask_rook_attacks(int square) {
   return attacks;
 }
 
-// generate bishop attacks on the fly
-uint64_t bishop_attacks_on_the_fly(int square, uint64_t block) {
-  // result attacks bitboard
+static uint64_t diagonal_attacks_on_the_fly(int tr, int tf, uint64_t block) {
   uint64_t attacks = 0ULL;
 
-  // init ranks & files
-  int r, f;
+  for (int r = tr + 1, f = tf + 1; r <= 7 && f <= 7; r++, f++) {
+    attacks |= (1ULL << (r * 8 + f));
+    if ((1ULL << (r * 8 + f)) & block)
+      break;
+  }
 
-  // init target rank & files
+  for (int r = tr - 1, f = tf + 1; r >= 0 && f <= 7; r--, f++) {
+    attacks |= (1ULL << (r * 8 + f));
+    if ((1ULL << (r * 8 + f)) & block)
+      break;
+  }
+
+  return attacks;
+}
+
+static uint64_t antidiagonal_attacks_on_the_fly(int tr, int tf, uint64_t block) {
+  uint64_t attacks = 0ULL;
+
+  for (int r = tr + 1, f = tf - 1; r <= 7 && f >= 0; r++, f--) {
+    attacks |= (1ULL << (r * 8 + f));
+    if ((1ULL << (r * 8 + f)) & block)
+      break;
+  }
+
+  for (int r = tr - 1, f = tf - 1; r >= 0 && f >= 0; r--, f--) {
+    attacks |= (1ULL << (r * 8 + f));
+    if ((1ULL << (r * 8 + f)) & block)
+      break;
+  }
+
+  return attacks;
+}
+
+// generate bishop attacks on the fly
+uint64_t bishop_attacks_on_the_fly(int square, uint64_t block) {
   int tr = square / 8;
   int tf = square % 8;
 
-  // generate bishop atacks
-  for (r = tr + 1, f = tf + 1; r <= 7 && f <= 7; r++, f++) {
-    attacks |= (1ULL << (r * 8 + f));
-    if ((1ULL << (r * 8 + f)) & block)
+  return diagonal_attacks_on_the_fly(tr, tf, block) | antidiagonal_attacks_on_the_fly(tr, tf, block);
+}
+
+static uint64_t rank_attacks_on_the_fly(int tr, int tf, uint64_t block) {
+  uint64_t attacks = 0ULL;
+
+  for (int f = tf + 1; f <= 7; f++) {
+    attacks |= (1ULL << (tr * 8 + f));
+    if ((1ULL << (tr * 8 + f)) & block)
       break;
   }
 
-  for (r = tr - 1, f = tf + 1; r >= 0 && f <= 7; r--, f++) {
-    attacks |= (1ULL << (r * 8 + f));
-    if ((1ULL << (r * 8 + f)) & block)
+  for (int f = tf - 1; f >= 0; f--) {
+    attacks |= (1ULL << (tr * 8 + f));
+    if ((1ULL << (tr * 8 + f)) & block)
+      break;
+  }
+  return attacks;
+}
+
+static uint64_t file_attacks_on_the_fly(int tr, int tf, uint64_t block) {
+  uint64_t attacks = 0ULL;
+
+  for (int r = tr + 1; r <= 7; r++) {
+    attacks |= (1ULL << (r * 8 + tf));
+    if ((1ULL << (r * 8 + tf)) & block)
       break;
   }
 
-  for (r = tr + 1, f = tf - 1; r <= 7 && f >= 0; r++, f--) {
-    attacks |= (1ULL << (r * 8 + f));
-    if ((1ULL << (r * 8 + f)) & block)
+  for (int r = tr - 1; r >= 0; r--) {
+    attacks |= (1ULL << (r * 8 + tf));
+    if ((1ULL << (r * 8 + tf)) & block)
       break;
   }
-
-  for (r = tr - 1, f = tf - 1; r >= 0 && f >= 0; r--, f--) {
-    attacks |= (1ULL << (r * 8 + f));
-    if ((1ULL << (r * 8 + f)) & block)
-      break;
-  }
-
-  // return attack map
   return attacks;
 }
 
 // generate rook attacks on the fly
 uint64_t rook_attacks_on_the_fly(int square, uint64_t block) {
-  // result attacks bitboard
-  uint64_t attacks = 0ULL;
-
-  // init ranks & files
-  int r, f;
-
   // init target rank & files
   int tr = square / 8;
   int tf = square % 8;
 
-  // generate rook attacks
-  for (r = tr + 1; r <= 7; r++) {
-    attacks |= (1ULL << (r * 8 + tf));
-    if ((1ULL << (r * 8 + tf)) & block)
-      break;
-  }
-
-  for (r = tr - 1; r >= 0; r--) {
-    attacks |= (1ULL << (r * 8 + tf));
-    if ((1ULL << (r * 8 + tf)) & block)
-      break;
-  }
-
-  for (f = tf + 1; f <= 7; f++) {
-    attacks |= (1ULL << (tr * 8 + f));
-    if ((1ULL << (tr * 8 + f)) & block)
-      break;
-  }
-
-  for (f = tf - 1; f >= 0; f--) {
-    attacks |= (1ULL << (tr * 8 + f));
-    if ((1ULL << (tr * 8 + f)) & block)
-      break;
-  }
-
-  // return attack map
-  return attacks;
+  return rank_attacks_on_the_fly(tr, tf, block) | file_attacks_on_the_fly(tr, tf, block);
 }
 
 // init leaper pieces attacks
@@ -354,6 +359,8 @@ uint64_t set_occupancy(int index, int bits_in_mask, uint64_t attack_mask) {
   // return occupancy map
   return occupancy;
 }
+
+static void init_merlins(void);
 
 // init slider piece's attack tables
 void init_sliders_attacks(void) {
@@ -403,6 +410,8 @@ void init_sliders_attacks(void) {
           rook_attacks_on_the_fly(square, occupancy);
     }
   }
+
+  init_merlins();
 }
 
 // is square current given attacked by the current given side
@@ -684,3 +693,53 @@ uint8_t is_square_threatened(searchstack_t *ss, int square) {
                         threats->king_threats));
 }
 
+#ifdef USE_MERLINS_ATTACKS
+
+merlin_magic_t merlins[64];
+uint8_t rank_attacks[256][8];
+
+static void init_merlins(void) {
+  for (int file = 0; file < 8; ++file)
+    for (int occ = 0; occ < 256; ++occ)
+    {
+      uint8_t attacks = 0;
+      for (int f = file + 1; f <= 7; ++f)
+      {
+        attacks |= (1 << f);
+        if (occ & (1 << f))
+          break;
+      }
+      for (int f = file - 1; f >= 0; --f)
+      {
+        attacks |= (1 << f);
+        if (occ & (1 << f))
+          break;
+      }
+      rank_attacks[file][occ] = attacks;
+    }
+
+  //         MerlinsBeard& m = MerlinsBeards[s];
+  // m.mask1 = line_mask(s, NORTH, SOUTH);
+  // m.mask2 = line_mask(s, NORTH_EAST, SOUTH_WEST);
+  // m.mask3 = 0;  // horizontal rook moves are separate
+  // m.mask4 = line_mask(s, NORTH_WEST, SOUTH_EAST);
+  // m.r     = square_bb(s) * 2;
+  // m.rr    = square_bb(Square(int(s) ^ 56)) * 2;  // bswap, not full bit reverse
+  // m.lookup = RankAttacks[int(file_of(s))].data();
+  // m.shift  = 8 * int(rank_of(s));
+  for (int sq = 0; sq < 64; ++sq) {
+    int tr = sq % 8, tf = sq % 8;
+    merlins[sq] = (merlin_magic_t) {
+      .mask_file = file_attacks_on_the_fly(tr, tf, 0),
+      .mask_diag = diagonal_attacks_on_the_fly(tr, tf, 0),
+      .mask_antidiag = antidiagonal_attacks_on_the_fly(tr, tf, 0),
+      .mask_none = 0,
+      .shift = 8 * tr,
+      .rank_attacks_lookup = rank_attacks[tf],
+      .r = (1ULL << sq),
+      .rr = (1ULL << (sq ^ 56))
+    };
+  }
+}
+
+#endif

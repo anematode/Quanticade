@@ -3,6 +3,7 @@
 
 #include "structs.h"
 #include <stdint.h>
+#include "immintrin.h"
 
 extern const int bishop_relevant_bits[64];
 extern const int rook_relevant_bits[64];
@@ -27,8 +28,61 @@ uint8_t stm_in_check(position_t *pos);
 void init_sliders_attacks(void);
 void init_leapers_attacks(void);
 
+#ifdef USE_AVX2
+#define USE_MERLINS_ATTACKS
+#endif
+
+#ifdef USE_MERLINS_ATTACKS
+typedef struct merlin_magic_s {
+  uint64_t mask_file, mask_diag, mask_none, mask_antidiag;
+  uint64_t r, rr;
+
+  const uint8_t* restrict rank_attacks_lookup;
+  int shift;
+} merlin_magic_t;
+
+extern merlin_magic_t merlins[64];
+
+static inline __m256i bswap(__m256i x) {
+  return _mm256_shuffle_epi8(x, _mm256_set_epi8(8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                                                          10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+}
+
+static inline void get_both_attacks(int square, uint64_t occupancy, uint64_t* bishop, uint64_t* rook) {
+  const merlin_magic_t* merlin = &merlins[square];
+
+  const __m256i mask = _mm256_load_si256((const __m256i*) merlin);
+  const __m256i rs   = _mm256_set1_epi64x(merlin->r);
+  const __m256i rrs  = _mm256_set1_epi64x(merlin->rr);
+
+  __m256i o      = _mm256_and_si256(mask, _mm256_set1_epi64x(occupancy));
+  __m256i fwd    = _mm256_sub_epi64(o, rs);
+  __m256i rev    = bswap(_mm256_sub_epi64(bswap(o), rrs));
+  __m256i result = _mm256_and_si256(_mm256_xor_si256(fwd, rev), mask);
+
+  // Lane 0: rook attacks (file only); lane 1: bishop attacks
+  __m128i rookBishop =
+    _mm_or_si128(_mm256_extracti128_si256(result, 1), _mm256_castsi256_si128(result));
+
+  uint64_t rowOccupancy = merlin->rank_attacks_lookup[occupancy >> (merlin->shift + 1) & 0x3f];
+  uint64_t rankAttacks  = rowOccupancy << merlin->shift;
+
+  // [bishop, rook]
+  *bishop = _mm_extract_epi64(rookBishop, 1);
+  *rook = _mm_cvtsi128_si64(rookBishop) + rankAttacks;
+}
+#endif
+
 // get bishop attacks
 static inline uint64_t get_bishop_attacks(int square, uint64_t occupancy) {
+#ifdef USE_MERLINS_ATTACKS
+  if (__builtin_constant_p(occupancy) && occupancy == 0) {
+    return bishop_masks[square];
+  }
+  uint64_t bishop, rook;
+  get_both_attacks(square, occupancy, &bishop, &rook);
+  return bishop;
+#else
   // get bishop attacks assuming current board occupancy
   occupancy &= bishop_masks[square];
   occupancy *= bishop_magic_numbers[square];
@@ -36,10 +90,19 @@ static inline uint64_t get_bishop_attacks(int square, uint64_t occupancy) {
 
   // return bishop attacks
   return bishop_attacks[square][occupancy];
+#endif
 }
 
 // get rook attacks
 static inline uint64_t get_rook_attacks(int square, uint64_t occupancy) {
+#ifdef USE_MERLINS_ATTACKS
+  if (__builtin_constant_p(occupancy) && occupancy == 0) {
+    return rook_masks[square];
+  }
+  uint64_t bishop, rook;
+  get_both_attacks(square, occupancy, &bishop, &rook);
+  return rook;
+#else
   // get rook attacks assuming current board occupancy
   occupancy &= rook_masks[square];
   occupancy *= rook_magic_numbers[square];
@@ -47,10 +110,14 @@ static inline uint64_t get_rook_attacks(int square, uint64_t occupancy) {
 
   // return rook attacks
   return rook_attacks[square][occupancy];
+#endif
 }
 
 // get queen attacks
 static inline uint64_t get_queen_attacks(int square, uint64_t occupancy) {
+#ifdef USE_MERLINS_ATTACKS
+  return get_bishop_attacks(square, occupancy) | get_rook_attacks(square, occupancy);
+#else
   // init result attacks bitboard
   uint64_t queen_attacks = 0ULL;
 
@@ -78,6 +145,7 @@ static inline uint64_t get_queen_attacks(int square, uint64_t occupancy) {
 
   // return queen attacks
   return queen_attacks;
+#endif
 }
 
 static inline uint64_t get_pawn_attacks(uint8_t side, int square) {
