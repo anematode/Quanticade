@@ -741,5 +741,7 @@ static void init_merlins(void) {
     };
   }
 }
+#else
+static void init_merlins(void) {}
 
 #endif
