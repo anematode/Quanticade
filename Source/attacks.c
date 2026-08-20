@@ -696,7 +696,7 @@ uint8_t is_square_threatened(searchstack_t *ss, int square) {
 #ifdef USE_MERLINS_ATTACKS
 
 merlin_magic_t merlins[64];
-uint8_t rank_attacks[256][8];
+uint8_t rank_attacks[8][256];
 
 static void init_merlins(void) {
   for (int file = 0; file < 8; ++file)
