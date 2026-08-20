@@ -28,7 +28,7 @@ uint8_t stm_in_check(position_t *pos);
 void init_sliders_attacks(void);
 void init_leapers_attacks(void);
 
-#ifdef USE_AVX2
+#if defined(USE_AVX2) || defined(USE_AVX512)
 #define USE_MERLINS_ATTACKS
 #endif
 
