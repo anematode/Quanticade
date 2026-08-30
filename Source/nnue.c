@@ -767,8 +767,8 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
 #endif
 
   const int L2_VECS = L2_SIZE / I32_STRIDE;
-  veci32_t regs[L2_VECS];
-  for (int r = 0; r < L2_VECS; r++)
+  veci32_t regs[L2_VECS * 2];
+  for (int r = 0; r < L2_VECS * 2; r++)
     regs[r] = zero_i32();
 
   int n = 0;
@@ -786,9 +786,13 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
       const vecs8_t w1 =
           *((vecs8_t *)&nnue
                 ->l1_weights[out_bucket][o1 + INT8_PER_INT32 * r * I32_STRIDE]);
-      regs[r] = dpbusd_epi32x2(regs[r], u0, w0, u1, w1);
+      dpbusd_epi32x2(&regs[r], &regs[r + L2_VECS], u0, w0, u1, w1);
     }
   }
+  for (int r = 0; r < L2_VECS; ++r) {
+    regs[r] = add_epi32(regs[r], regs[r + L2_VECS]);
+  }
+
   if (n < nnz_count) {
     const int p0 = nnz_indices[n];
     const vecs8_t u0 = broadcast_pack(l1Packs[p0]);
