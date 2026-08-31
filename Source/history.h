@@ -15,13 +15,9 @@ int16_t correction_value(thread_t *thread);
 
 static inline int16_t get_conthist_score(thread_t *thread, searchstack_t *ss,
                                          int move, uint8_t ply) {
-  if (thread->ply >= ply && (ss - ply)->piece != NO_PIECE) {
     return (ss - ply)->continuation_history[thread->positions[thread->ply]
                                .mailbox[get_move_source(move)]]
                                        [get_history_target(move)];
-  } else {
-    return 0;
-  }
 }
 void update_quiet_history(thread_t *thread, searchstack_t *ss, int move,
                           int bonus);

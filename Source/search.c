@@ -935,7 +935,7 @@ static inline int16_t negamax(thread_t *thread, searchstack_t *ss,
     null_pos->checkers = 0;
     null_pos->checker_count = 0;
     (ss + 1)->null_move = 1;
-    ss->continuation_history = thread->continuation_history[0][0];
+    ss->continuation_history = thread->continuation_history[NO_PIECE][0];
 
     calculate_threats(null_pos, ss + 1);
 
@@ -1502,6 +1502,7 @@ void *iterative_deepening(void *thread_void) {
       ss[i].reduction = 0;
       ss[i].tt_pv = 0;
       ss[i].cutoff_cnt = 0;
+      ss[i].continuation_history = thread->continuation_history[NO_PIECE][0];
     }
 
     calculate_threats(pos, ss + 7);
