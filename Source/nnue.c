@@ -14,6 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
+
 int EVAL_SCALE = 309;
 
 const nnue_t *nnue;
@@ -222,6 +226,9 @@ static inline int get_threat_index(int perspective, int king_sq,
 
 void nnue_init(void) {
   nnue = (const nnue_t *)gEVALData;
+#ifdef MADV_COLLAPSE
+  madvise((void*)nnue, sizeof(nnue_t), MADV_COLLAPSE);
+#endif
   init_threat_tables();
 #if defined(USE_SIMD) && !defined(USE_AVX512ICL)
   init_nnz_table();

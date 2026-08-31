@@ -3,6 +3,10 @@
 #include <string.h>
 #include "structs.h"
 
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
+
 thread_t *init_threads(int thread_count) {
     thread_t *threads;
 
@@ -27,6 +31,9 @@ thread_t *init_threads(int thread_count) {
 
     for (int thread = 0; thread < thread_count; ++thread) {
         memset(&threads[thread], 0, sizeof(threads[thread]));
+#ifdef MADV_COLLAPSE
+        madvise(&threads[thread], sizeof(thread_t), MADV_COLLAPSE);
+#endif
         threads[thread].index = thread;
     }
 
