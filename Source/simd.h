@@ -85,6 +85,9 @@ static inline vecf_t mul_ps(vecf_t vec, vecf_t vec1) {
 static inline vecf_t clip_ps(vecf_t vec, vecf_t max, vecf_t min) {
   return _mm512_max_ps(_mm512_min_ps(vec, max), min);
 }
+static inline vecf_t min_ps(vecf_t a, vecf_t b) {
+  return _mm512_min_ps(a, b);
+}
 static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
   return _mm512_fmadd_ps(a, b, c);
 }
@@ -162,6 +165,9 @@ static inline vecf_t mul_ps(vecf_t vec, vecf_t vec1) {
 }
 static inline vecf_t clip_ps(vecf_t vec, vecf_t max, vecf_t min) {
   return _mm256_max_ps(_mm256_min_ps(vec, max), min);
+}
+static inline vecf_t min_ps(vecf_t a, vecf_t b) {
+  return _mm256_min_ps(a, b);
 }
 static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
   return _mm256_fmadd_ps(a, b, c);
@@ -246,6 +252,9 @@ static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
 }
 static inline vecf_t clip_ps(vecf_t v, vecf_t mx, vecf_t mn) {
   return vmaxq_f32(vminq_f32(v, mx), mn);
+}
+static inline vecf_t min_ps(vecf_t a, vecf_t b) {
+  return vminq_f32(a, b);
 }
 static inline vecf_t cvtepi32_ps(veci32_t v) { return vcvtq_f32_s32(v); }
 

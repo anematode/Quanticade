@@ -812,15 +812,13 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
     const vecf_t zero_ps = set_ps1(0.0f);
 
     for (int l2 = 0; l2 < L2_SIZE / FLOAT_VEC_SIZE; l2++) {
-      const vecf_t l2_result = add_ps(
-          mul_ps(cvtepi32_ps(
-                     *((veci32_t *)&layers->l2_neurons[l2 * FLOAT_VEC_SIZE])),
-                 norm_ps),
-          *((vecf_t *)&nnue->l1_bias[out_bucket][l2 * FLOAT_VEC_SIZE]));
+      const vecf_t l2_result = fmadd_ps(
+          cvtepi32_ps(*((veci32_t *)&layers->l2_neurons[l2 * FLOAT_VEC_SIZE])),
+                 norm_ps, *((vecf_t *)&nnue->l1_bias[out_bucket][l2 * FLOAT_VEC_SIZE]));
       *((vecf_t *)&layers->l2_floats[l2 * FLOAT_VEC_SIZE]) =
           clip_ps(l2_result, one_ps, zero_ps);
       *((vecf_t *)&layers->l2_floats[l2 * FLOAT_VEC_SIZE + L2_SIZE]) =
-          clip_ps(mul_ps(l2_result, l2_result), one_ps, zero_ps);
+          min_ps(mul_ps(l2_result, l2_result), one_ps);
     }
 
     for (int l2 = 0; l2 < 2 * L2_SIZE; l2++) {
