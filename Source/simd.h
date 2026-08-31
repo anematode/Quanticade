@@ -88,6 +88,9 @@ static inline vecf_t clip_ps(vecf_t vec, vecf_t max, vecf_t min) {
 static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
   return _mm512_fmadd_ps(a, b, c);
 }
+static inline uint64_t mailbox_compare(const uint8_t* a, const uint8_t* b) {
+  return _mm512_cmpneq_epi8_mask(_mm512_loadu_epi8(a), _mm512_loadu_epi8(b));
+}
 
 static inline float reduce_add_ps(vecf_t *v) {
   return _mm512_reduce_add_ps(v[0]);
@@ -165,6 +168,19 @@ static inline vecf_t clip_ps(vecf_t vec, vecf_t max, vecf_t min) {
 }
 static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
   return _mm256_fmadd_ps(a, b, c);
+}
+static inline uint64_t mailbox_compare(const uint8_t* a, const uint8_t* b) {
+  uint64_t result = 0;
+  for (int s = 0; s < 64; s += 32) {
+    unsigned mask = (unsigned)_mm256_movemask_epi8(
+       _mm256_cmpeq_epi8(
+        _mm256_loadu_si256((const __m256i*)(a + s)),
+        _mm256_loadu_si256((const __m256i*)(b + s))
+       )
+    );
+    result += (uint64_t)mask << s;
+  }
+  return ~result;
 }
 
 static inline float reduce_add_ps(vecf_t *v) {

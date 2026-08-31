@@ -1282,10 +1282,7 @@ static inline void update_threats_incremental(accumulator_t *acc,
                                        accumulator_t *acc_before,
                                        position_t *pos_before,
                                        position_t *pos_after) {
-  uint64_t real_changed_sqs = 0;
-  for (int i = 0; i < 12; i++) {
-    real_changed_sqs |= (pos_before->bitboards[i] ^ pos_after->bitboards[i]);
-  }
+  uint64_t real_changed_sqs = mailbox_compare(pos_before->mailbox, pos_after->mailbox);
 
   uint64_t occ_b = pos_before->occupancies[both];
   uint64_t occ_a = pos_after->occupancies[both];
@@ -1338,13 +1335,6 @@ void apply_accumulator(thread_t *thread, int ply) {
                              tmp.bitboards[b] | tmp.bitboards[r] |
                              tmp.bitboards[q] | tmp.bitboards[k];
     tmp.occupancies[both] = tmp.occupancies[white] | tmp.occupancies[black];
-
-    memset(tmp.mailbox, 12, 64);
-    for (int i = 0; i < 12; i++) {
-      uint64_t bb = s->bitboards[i];
-      while (bb)
-        tmp.mailbox[poplsb(&bb)] = i;
-    }
 
     refresh_accumulator(thread, &tmp, &thread->accumulator[ply]);
 
