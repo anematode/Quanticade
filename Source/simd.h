@@ -88,9 +88,18 @@ static inline vecf_t clip_ps(vecf_t vec, vecf_t max, vecf_t min) {
 static inline vecf_t min_ps(vecf_t a, vecf_t b) {
   return _mm512_min_ps(a, b);
 }
+static inline vecf_t max_ps(vecf_t a, vecf_t b) {
+  return _mm512_max_ps(a, b);
+}
 static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
   return _mm512_fmadd_ps(a, b, c);
 }
+static inline uint64_t make_nonnegative_ps(vecf_t* p) {
+  __mmask16 positive = _mm512_cmp_ps_mask(*p, _mm512_setzero_ps(), _CMP_GT_OQ);
+  *p = _mm512_maskz_mov_ps(positive, *p);
+  return positive;
+}
+
 
 static inline float reduce_add_ps(vecf_t *v) {
   return _mm512_reduce_add_ps(v[0]);
@@ -169,8 +178,21 @@ static inline vecf_t clip_ps(vecf_t vec, vecf_t max, vecf_t min) {
 static inline vecf_t min_ps(vecf_t a, vecf_t b) {
   return _mm256_min_ps(a, b);
 }
+static inline vecf_t max_ps(vecf_t a, vecf_t b) {
+  return _mm256_max_ps(a, b);
+}
 static inline vecf_t fmadd_ps(vecf_t a, vecf_t b, vecf_t c) {
   return _mm256_fmadd_ps(a, b, c);
+}
+
+// Compute max(x, 0.0f) and return a bitset of positive entries
+// in the result
+static inline uint64_t make_nonnegative_ps(vecf_t* p) {
+  *p = _mm256_max_ps(*p, _mm256_setzero_ps());
+  return (unsigned) _mm256_movemask_ps(
+     _mm256_castsi256_ps(
+      _mm256_cmpgt_epi32(
+       _mm256_castps_si256(*p), _mm256_setzero_si256())));
 }
 
 static inline float reduce_add_ps(vecf_t *v) {
@@ -255,6 +277,9 @@ static inline vecf_t clip_ps(vecf_t v, vecf_t mx, vecf_t mn) {
 }
 static inline vecf_t min_ps(vecf_t a, vecf_t b) {
   return vminq_f32(a, b);
+}
+static inline vecf_t max_ps(vecf_t a, vecf_t b) {
+  return vmaxq_f32(a, b);
 }
 static inline vecf_t cvtepi32_ps(veci32_t v) { return vcvtq_f32_s32(v); }
 

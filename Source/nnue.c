@@ -811,17 +811,32 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
     const vecf_t one_ps = set_ps1(1.0f);
     const vecf_t zero_ps = set_ps1(0.0f);
 
+    _Static_assert(L2_SIZE <= 32, "too big");
+
+    // Nonzero float elements in l2_floats
+    uint64_t nonzero = 0;
+
     for (int l2 = 0; l2 < L2_SIZE / FLOAT_VEC_SIZE; l2++) {
       const vecf_t l2_result = fmadd_ps(
           cvtepi32_ps(*((veci32_t *)&layers->l2_neurons[l2 * FLOAT_VEC_SIZE])),
                  norm_ps, *((vecf_t *)&nnue->l1_bias[out_bucket][l2 * FLOAT_VEC_SIZE]));
+
+      vecf_t a = min_ps(l2_result, one_ps);
+      vecf_t b = min_ps(mul_ps(l2_result, l2_result), one_ps);
+
+      nonzero |= make_nonnegative_ps(&a) << l2 * FLOAT_VEC_SIZE;
+      nonzero |= make_nonnegative_ps(&b) << ((l2 * FLOAT_VEC_SIZE) + L2_SIZE);
+
       *((vecf_t *)&layers->l2_floats[l2 * FLOAT_VEC_SIZE]) =
           clip_ps(l2_result, one_ps, zero_ps);
       *((vecf_t *)&layers->l2_floats[l2 * FLOAT_VEC_SIZE + L2_SIZE]) =
           min_ps(mul_ps(l2_result, l2_result), one_ps);
     }
 
-    for (int l2 = 0; l2 < 2 * L2_SIZE; l2++) {
+    while (nonzero) {
+      unsigned l2 = __builtin_ctzll(nonzero);
+      nonzero &= nonzero - 1;
+
       const vecf_t act = set_ps1(layers->l2_floats[l2]);
       for (int l3 = 0; l3 < L3_SIZE / FLOAT_VEC_SIZE; l3++) {
         *((vecf_t *)&layers->l3_neurons[l3 * FLOAT_VEC_SIZE]) = fmadd_ps(
