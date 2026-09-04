@@ -822,8 +822,6 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
     *((veci32_t *)&layers->l2_neurons[r * I32_STRIDE]) = regs[r];
 
   float result;
-  memcpy(layers->l3_neurons, nnue->l2_bias[out_bucket],
-         sizeof(layers->l3_neurons));
   {
     const vecf_t norm_ps = set_ps1(L1_NORMALISATION);
     const vecf_t one_ps = set_ps1(1.0f);
@@ -841,14 +839,20 @@ int nnue_evaluate(thread_t *thread, position_t *pos,
           clip_ps(mul_ps(l2_result, l2_result), one_ps, zero_ps);
     }
 
+    vecf_t l3_vecs[L3_SIZE / FLOAT_VEC_SIZE];
+    for (int l3 = 0; l3 < L3_SIZE / FLOAT_VEC_SIZE; l3++) {
+        l3_vecs[l3] = ((const vecf_t*)&nnue->l2_bias[out_bucket])[l3];
+    }
     for (int l2 = 0; l2 < 2 * L2_SIZE; l2++) {
       const vecf_t act = set_ps1(layers->l2_floats[l2]);
       for (int l3 = 0; l3 < L3_SIZE / FLOAT_VEC_SIZE; l3++) {
-        *((vecf_t *)&layers->l3_neurons[l3 * FLOAT_VEC_SIZE]) = fmadd_ps(
-            act,
-            *((vecf_t *)&nnue->l2_weights[out_bucket][l2][l3 * FLOAT_VEC_SIZE]),
-            *((vecf_t *)&layers->l3_neurons[l3 * FLOAT_VEC_SIZE]));
+        l3_vecs[l3] = fmadd_ps(
+            act, *((vecf_t *)&nnue->l2_weights[out_bucket][l2][l3 * FLOAT_VEC_SIZE]), l3_vecs[l3]);
       }
+    }
+
+    for (int l3 = 0; l3 < L3_SIZE / FLOAT_VEC_SIZE; l3++) {
+        ((vecf_t*)&layers->l3_neurons)[l3] = l3_vecs[l3];
     }
 
     const int chunks = 64 / sizeof(vecf_t);
